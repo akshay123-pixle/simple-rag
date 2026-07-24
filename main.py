@@ -15,7 +15,8 @@ def ask_kubernetes_doc(question: str = "What is Kubernetes and what are its core
     print("[Vector DB]: Searching Qdrant...")
 
     # Step 1: Embed query and search vector DB
-    retrieved_docs = search_enterprise_knowledge(query=question, limit=top_k)
+    top_k_val = min(top_k, 3)
+    retrieved_docs = search_enterprise_knowledge(query=question, limit=top_k_val)
 
     if not retrieved_docs:
         print("[Vector DB]: No relevant context found.")
@@ -23,8 +24,15 @@ def ask_kubernetes_doc(question: str = "What is Kubernetes and what are its core
 
     print(f"[Vector DB]: Found {len(retrieved_docs)} relevant context chunks.")
 
-    # Step 2: Construct context from retrieved documents
-    context_text = "\n\n---\n\n".join([doc["content"] for doc in retrieved_docs])
+    # Step 2: Construct context from retrieved documents (truncate to prevent token limit)
+    truncated_chunks = []
+    for doc in retrieved_docs[:3]:
+        content = doc.get("content", "")
+        if len(content) > 1500:
+            content = content[:1500] + "... [truncated]"
+        truncated_chunks.append(content)
+
+    context_text = "\n\n---\n\n".join(truncated_chunks)
 
     # Step 3: Initialize LLM and pass question + context
     print("[LLM]: Generating response...")
