@@ -1,9 +1,14 @@
+import sys
+
 from app.config import settings
 from app.services.retrieval.qdrant_service import search_enterprise_knowledge
 from langchain_groq import ChatGroq
 
 
-def ask_kubernetes_doc(question: str = "What is Kubernetes and what are its core components?", top_k: int = 5) -> str:
+def ask_kubernetes_doc(
+    question: str = "What is Kubernetes and what are its core components?",
+    top_k: int = 5,
+) -> str:
     """
     Simple function to query Kubernetes documents:
     1. Embeds the question and searches Qdrant vector database.
@@ -14,8 +19,11 @@ def ask_kubernetes_doc(question: str = "What is Kubernetes and what are its core
     print(f"\n[Question]: {question}")
     print("[Vector DB]: Searching Qdrant...")
 
-    # Step 1: Embed query and search vector DB
-    retrieved_docs = search_enterprise_knowledge(query=question, limit=top_k)
+    # Step 1: Search vector DB
+    retrieved_docs = search_enterprise_knowledge(
+        query=question,
+        limit=top_k,
+    )
 
     if not retrieved_docs:
         print("[Vector DB]: No relevant context found.")
@@ -23,24 +31,33 @@ def ask_kubernetes_doc(question: str = "What is Kubernetes and what are its core
 
     print(f"[Vector DB]: Found {len(retrieved_docs)} relevant context chunks.")
 
-    # Step 2: Construct context from retrieved documents
-    context_text = "\n\n---\n\n".join([doc["content"] for doc in retrieved_docs])
+    # Step 2: Build context
+    context_text = "\n\n---\n\n".join(
+        doc["content"] for doc in retrieved_docs
+    )
 
-    # Step 3: Initialize LLM and pass question + context
+    # Step 3: Query LLM
     print("[LLM]: Generating response...")
+
     llm = ChatGroq(
         model_name=settings.GROQ_MODEL,
         groq_api_key=settings.GROQ_API_KEY,
         temperature=0.2,
     )
 
-    prompt = (
-        "You are an assistant answering questions based on Kubernetes documentation.\n"
-        "Answer the user's question accurately using ONLY the provided context.\n\n"
-        f"--- CONTEXT ---\n{context_text}\n\n"
-        f"--- QUESTION ---\n{question}\n\n"
-        "--- ANSWER ---"
-    )
+    prompt = f"""
+You are an assistant answering questions based on Kubernetes documentation.
+
+Answer the user's question accurately using ONLY the provided context.
+
+--- CONTEXT ---
+{context_text}
+
+--- QUESTION ---
+{question}
+
+--- ANSWER ---
+"""
 
     response = llm.invoke(prompt)
     answer = response.content.strip()
@@ -50,10 +67,22 @@ def ask_kubernetes_doc(question: str = "What is Kubernetes and what are its core
 
 
 def main():
-    ask_kubernetes_doc("What is Kubernetes and what are its core components?")
+    # If a question is passed via command line, use it.
+    if len(sys.argv) > 1:
+        question = " ".join(sys.argv[1:])
+    else:
+        # Otherwise, prompt the user interactively.
+        question = input(
+            "Enter your Kubernetes question (press Enter for default): "
+        ).strip()
+
+        if not question:
+            question = (
+                "What is Kubernetes and what are its core components?"
+            )
+
+    ask_kubernetes_doc(question)
 
 
 if __name__ == "__main__":
     main()
-
-
